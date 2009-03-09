@@ -521,6 +521,10 @@ class OAuthServer(object):
         # this request token already exists, then the store will "do the right thing"
         # however, we still generate a new access token, because
         # we do not assume that it *can* be recovered, if it's self-certified.
+
+        # note that the store could, here ignore the token and secret generated,
+        # if there is an existing token. Thus, if the store *wants* to reuse an existing one
+        # that's okay.
         access_token = self.store.create_access_token(consumer, request_token, token, secret)
 
         return access_token
