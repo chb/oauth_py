@@ -718,7 +718,7 @@ def parse_qs(s):
 
 def generate_random_string(length=20):
     # FIXME: better randomness
-    return "".join([random.choice(string.printable[0:94]) for i in range(length)])    
+    return "".join([random.choice(string.printable[0:62]) for i in range(length)])    
 
 # util: generate random token and secret
 def generate_token_and_secret():
