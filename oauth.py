@@ -184,7 +184,7 @@ class OAuthRequest(object):
         """
 
         if not consumer:
-            raise OAuthError("You must specific a consumer")
+            raise OAuthError("You must specify a consumer")
 
         # can only feed non default parameters
         if len(set(oauth_parameters.keys()) & set(OAuthRequest.DEFAULT_PARAMETERS)) > 0:
@@ -418,6 +418,8 @@ class OAuthRequest(object):
             raise OAuthError("no consumer")
         oauth_consumer_key = oauth_params['oauth_consumer_key']
         consumer = oauth_store.lookup_consumer(oauth_consumer_key)
+        if not consumer:
+          raise OAuthError("No Consumer Found")
 
         # look up token
         token = None
