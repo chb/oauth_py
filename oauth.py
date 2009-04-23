@@ -729,7 +729,7 @@ def escape(s):
 
 # parse a query string
 def parse_qs(s):
-    data = cgi.parse_qs(s)
+    data = cgi.parse_qs(s, keep_blank_values = True)
     for k in data.keys():
         if len(data[k]) == 1:
             data[k] = data[k][0]
