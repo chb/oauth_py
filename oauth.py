@@ -142,6 +142,7 @@ class OAuthSignatureMethod_HMAC_SHA1(OAuthSignatureMethod):
 
 SIGNATURE_METHODS = {}
 
+# populate the metadata in SIGNATURE_METHODS
 for m_class in [OAuthSignatureMethod_HMAC_SHA1]:
     method = m_class()
     SIGNATURE_METHODS[method.get_name()] = method
@@ -465,7 +466,7 @@ class OAuthServer(object):
         do the actual request token generation for a consumer
         """
         # create a new request token and store it
-        token, secret = generate_token_and_secret()
+        token, secret = self.store.generate_request_token_and_secret(consumer)
         request_token = self.store.create_request_token(consumer, token, secret, **kwargs)
         return request_token
     
@@ -501,7 +502,7 @@ class OAuthServer(object):
 
         self.__authorize_request_token(request_token, **kwargs)
 
-        return request_token.pha
+        return request_token
 
     def __exchange_request_token(self, consumer, request_token):
         """
@@ -511,13 +512,14 @@ class OAuthServer(object):
         # mark request token used at this stage
         self.store.mark_request_token_used(consumer, request_token)
 
-        # check if an access token already exists
-        access_token = self.store.lookup_existing_access_token(consumer, request_token)
+        # generate a new token
+        token, secret = self.store.generate_access_token_and_secret(consumer, request_token)
 
-        if not access_token:
-            # generate a new token
-            token, secret = generate_token_and_secret()
-            access_token = self.store.create_access_token(consumer, request_token, token, secret)
+        # we expect this call to check that, if the sharing action given by
+        # this request token already exists, then the store will "do the right thing"
+        # however, we still generate a new access token, because
+        # we do not assume that it *can* be recovered, if it's self-certified.
+        access_token = self.store.create_access_token(consumer, request_token, token, secret)
 
         return access_token
 
@@ -616,6 +618,21 @@ class OAuthClient(object):
 class OAuthStore(object):
     def __init__(self):
         pass
+
+    def generate_request_token_and_secret(self, consumer):
+        """
+        By default, just random strings.
+        But a more complex store could choose to build self-certifying tokens
+        """
+        return generate_token_and_secret()
+
+    def generate_access_token_and_secret(self, consumer, request_token):
+        """
+        By default, just random string. Same as request_token,
+        except here the self-certification might need to be based on all the properties of the request token,
+        e.g. the permissions granted to this access_token, etc...
+        """
+        return generate_token_and_secret()
 
     def lookup_consumer(self, consumer_key):
         """
