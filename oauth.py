@@ -576,8 +576,12 @@ class OAuthServer(object):
         oauth_request = OAuthRequest.from_http_request(http_request, self.store)
 
         # we need an access token
-        if oauth_request.token and oauth_request.token_type != OAuthRequest.ACCESS_TOKEN:
-            raise OAuthError("incorrect token present in a resource-access call")
+        #
+        # REMOVED 2009-05-12: we actually want this to authenticate with the tokken
+        # being the request token, access control is now done separately
+        #
+        #if oauth_request.token and oauth_request.token_type != OAuthRequest.ACCESS_TOKEN:
+        #    raise OAuthError("incorrect token present in a resource-access call")
         
         # verify it
         if not oauth_request.verify(self.store):
