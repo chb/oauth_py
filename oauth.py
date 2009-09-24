@@ -210,7 +210,10 @@ class OAuthRequest(object):
 
     # process the HTTP Request, in particular check the content-type
     if self.http_request.data_content_type == HTTPRequest.FORM_URLENCODED_TYPE or self.http_request.method == "GET" or self.http_request.data == '':
-      if (self.http_request.data and isinstance(self.http_request.data, str)) or self.http_request.data == '': 
+      if (self.http_request.data and \
+          (isinstance(self.http_request.data, str) or \
+            isinstance(self.http_request.data, unicode))) or \
+          self.http_request.data == '': 
         self.data = parse_qs(self.http_request.data)
       else:
         raise OAuthError("Query string must be a string")
