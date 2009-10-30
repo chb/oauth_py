@@ -557,6 +557,9 @@ class OAuthServer(object):
       raise OAuthError("Bad authentication")
 
     # ensure that the verifier is good
+    if not oauth_request.oauth_parameters.has_key('oauth_verifier'):
+      raise OAuthError("no request token verifier")
+
     if not self.store.verify_request_token_verifier(oauth_request.token, oauth_request.oauth_parameters['oauth_verifier']):
       raise OAuthError("bad request token verifier")
 
