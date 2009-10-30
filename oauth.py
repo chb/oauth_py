@@ -24,21 +24,7 @@ import logging, copy,string
 VERSION = '1.0'
 TIMESTAMP_THRESHOLD = 300
 
-def var_check(name, var, type=1):
-  # SZ: type 1 must have len(var) > 0
-  if not var is None:
-    if type > 0:
-      if ((isinstance(var, str) or isinstance(var, unicode)) \
-          and len(var) > 0) or \
-          (isinstance(var, dict) and len(var) > 0):
-        return var
-      else:
-        raise ValueError(name + " is empty")
-    else:
-      return var
-  else:
-    raise TypeError(name + " is None")
-  
+## removed var_check
 
 class HTTPRequest(object):
   """
@@ -51,11 +37,11 @@ class HTTPRequest(object):
   TEXT_PLAIN = 'text/plain'
 
   def __init__(self, method, path, data_content_type=FORM_URLENCODED_TYPE, data='', headers={}):
-    self.method       = var_check('method', method)
-    self.path         = var_check('path', path)
-    self.data_content_type  = var_check('data_content_type', data_content_type)
-    self.data         = var_check('data', data, 0)
-    self.headers      = var_check('headers', headers, 0)
+    self.method       = method
+    self.path         = path
+    self.data_content_type  = data_content_type
+    self.data         = data
+    self.headers      = headers
 
 ##
 ## Model classes for consumer and token
@@ -70,19 +56,23 @@ class OAuthConsumer(object):
     self.consumer_key = consumer_key
     self.secret = secret
 
-# OAuthToken is a data type that represents an End User via either an access
-# or request token.   
+# OAuthToken is either an access or request token.   
 class OAuthToken(object):
-  def __init__(self, token, secret):
+  def __init__(self, token, secret, **params):
     '''
     key = the token
     secret = the token secret
+    params = other parameters that need to be bundled in, e.g. oauth_callback_url,...
     '''
     self.token = token
     self.secret = secret
+    self.additional_params = params
 
   def to_string(self):
-    return urllib.urlencode({'oauth_token': self.token, 'oauth_token_secret': self.secret})
+    params = copy.copy(self.params)
+    params['oauth_token'] = self.token
+    params['oauth_token_secret'] = self.secret
+    return urllib.urlencode(params)
 
   # return a token from something like:
   # oauth_token_secret=digg&oauth_token=digg
@@ -91,9 +81,14 @@ class OAuthToken(object):
     params = cgi.parse_qs(s, keep_blank_values=False)
     key = params['oauth_token'][0]
     secret = params['oauth_token_secret'][0]
-    return OAuthToken(key, secret)
+
+    del params['oauth_token']
+    del params['oauth_token_secret']
+
+    return OAuthToken(key, secret, **params)
 
   __str__ = to_string
+
 
 
 ##
@@ -264,7 +259,6 @@ class OAuthRequest(object):
     set the signature parameter to the result of build_signature
     """
 
-    # oauth version
     self.oauth_parameters['oauth_version'] = VERSION
     self.oauth_parameters['oauth_consumer_key'] = self.consumer.consumer_key
     if self.token:
@@ -305,14 +299,14 @@ class OAuthRequest(object):
     # if request body hash extension, then check the content-type match and the hash match
     if self.__hash_body:
       # check content type
-      if self.oauth_parameters.__contains__('oauth_content_type'):
+      if self.oauth_parameters.has_key('oauth_content_type'):
         if self.oauth_parameters['oauth_content_type'] != self.http_request.data_content_type:
           return None
       else:
         pass #Error out?
 
       # check hash
-      if self.oauth_parameters.__contains__('oauth_body_hash'):
+      if self.oauth_parameters.has_key('oauth_body_hash'):
         if self.oauth_parameters['oauth_body_hash'] != self.__do_hash_body():
           return None
       else:
@@ -438,6 +432,7 @@ class OAuthRequest(object):
     type = None
 
     # FIXME: we now treat a blank oauth_token as inexistent, but that's kinda shady.
+    # Ben says: actually, that's how some oauth client libraries do it, so we have no choice.
     if oauth_params.has_key('oauth_token') and oauth_params['oauth_token'] != "":
       token_str = oauth_params['oauth_token']
 
@@ -474,13 +469,18 @@ class OAuthServer(object):
   def __init__(self, store):
     self.store = store
 
-  def __generate_request_token(self, consumer, **kwargs):
+  def __generate_request_token(self, consumer, oauth_callback, **kwargs):
     """
     do the actual request token generation for a consumer
     """
-    # create a new request token and store it
-    token, secret = self.store.generate_request_token_and_secret(consumer)
-    request_token = self.store.create_request_token(consumer, token, secret, **kwargs)
+
+    # if oauth_callback is 'oob', then that's the null
+    if oauth_callback == 'oob':
+      oauth_callback = None
+
+    # create a new request token and store it, added verifier for 1.0a
+    token, secret, verifier = self.store.generate_request_token_secret_and_verifier(consumer)
+    request_token = self.store.create_request_token(consumer, token, secret, verifier, oauth_callback, **kwargs)
     return request_token
   
   def generate_request_token(self, http_request, **kwargs):
@@ -493,12 +493,16 @@ class OAuthServer(object):
     if oauth_request.token != None:
       raise OAuthError("token mistakenly present in a request-token request")
 
+    # oauth 1.0a requires a callback parameter
+    if not oauth_request.oauth_parameters.has_key('oauth_callback'):
+      raise OAuthError("an oauth_callback is required in oauth v1.0a, even if it's 'oob'")
+
     # verify it
     # pass the store in to check nonce
     if not oauth_request.verify(self.store):
       raise OAuthError("Authentication Failure")
     
-    return self.__generate_request_token(oauth_request.consumer, **kwargs)
+    return self.__generate_request_token(oauth_request.consumer, oauth_request.oauth_parameters['oauth_callback'], **kwargs)
 
   def __authorize_request_token(self, request_token, **kwargs):
     self.store.authorize_request_token(request_token, **kwargs)
@@ -513,6 +517,7 @@ class OAuthServer(object):
     if not request_token:
       raise OAuthError("bad request token")
 
+    # mark the request token authorized
     self.__authorize_request_token(request_token, **kwargs)
 
     return request_token
@@ -550,6 +555,10 @@ class OAuthServer(object):
     # verify it
     if not oauth_request.verify(self.store):
       raise OAuthError("Bad authentication")
+
+    # ensure that the verifier is good
+    if not self.store.verify_request_token_verifier(oauth_request.token, oauth_request.oauth_parameters['oauth_verifier']):
+      raise OAuthError("bad request token verifier")
 
     access_token = self.__exchange_request_token(oauth_request.consumer, oauth_request.token)
 
@@ -636,12 +645,25 @@ class OAuthStore(object):
   def __init__(self):
     pass
 
-  def generate_request_token_and_secret(self, consumer):
+  def generate_request_token_verifier(self, token, secret):
+    """
+    A verifier could be an HMAC of the token, or it could be a new random string
+    """
+    return generate_random_string()
+
+  def verify_request_token_verifier(self, request_token, verifier):
+    """
+    Verify whether a request token's verifier matches
+    """
+    raise NotImplementedError("verify request token verifier needs to be implemented by store")
+
+  def generate_request_token_secret_and_verifier(self, consumer):
     """
     By default, just random strings.
     But a more complex store could choose to build self-certifying tokens
     """
-    return generate_token_and_secret()
+    token, secret = generate_token_and_secret()
+    return token, secret, self.generate_request_token_verifier(token, secret)
 
   def generate_access_token_and_secret(self, consumer, request_token):
     """
@@ -657,7 +679,7 @@ class OAuthStore(object):
     """
     raise NotImplementedError
 
-  def create_request_token(self, consumer, request_token_str, request_token_secret, **kwargs):
+  def create_request_token(self, consumer, request_token_str, request_token_secret, oauth_callback, **kwargs):
     """
     take a RequestToken and store it.
 
