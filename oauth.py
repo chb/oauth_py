@@ -577,7 +577,7 @@ class OAuthServer(object):
     """
     
     # generate the request token
-    request_token = self.__generate_request_token(consumer)
+    request_token = self.__generate_request_token(consumer, 'oob')
 
     # approve it with the extra args given
     self.__authorize_request_token(request_token, **kwargs)
@@ -682,7 +682,7 @@ class OAuthStore(object):
     """
     raise NotImplementedError
 
-  def create_request_token(self, consumer, request_token_str, request_token_secret, oauth_callback, **kwargs):
+  def create_request_token(self, consumer, request_token_str, request_token_secret, verifier, oauth_callback, **kwargs):
     """
     take a RequestToken and store it.
 
