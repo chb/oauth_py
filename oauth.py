@@ -528,6 +528,7 @@ class OAuthServer(object):
     """
 
     # mark request token used at this stage
+    # only works if the request token has been authorized
     self.store.mark_request_token_used(consumer, request_token)
 
     # generate a new token
