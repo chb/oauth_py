@@ -203,6 +203,8 @@ class OAuthRequest(object):
 
     self.realm = realm
 
+    self.__verified = False
+
     # process the HTTP Request, in particular check the content-type
     if self.http_request.data_content_type == HTTPRequest.FORM_URLENCODED_TYPE or self.http_request.method == "GET" or self.http_request.data == '':
       if (self.http_request.data and \
@@ -287,6 +289,10 @@ class OAuthRequest(object):
     in the construction of the OAuthRequest object, typically in from_http_request
     """
 
+    # already verified?
+    if self.__verified:
+      return self.consumer, self.token, self.oauth_parameters
+
     # check version compatibility, this will throw an exception if need be
     self.__check_version()
 
@@ -319,6 +325,7 @@ class OAuthRequest(object):
     signature_method = self.get_signature_method()
 
     if signature_method.verify(signature_base_string, self.consumer, self.token, self.signature):
+      self.__verified = True
       return self.consumer, self.token, self.oauth_parameters
     else:
       return None
@@ -469,6 +476,16 @@ class OAuthServer(object):
   def __init__(self, store):
     self.store = store
 
+  def extract_oauth_request(self, http_request):
+    """
+    from an HTTP request, make an oAuth request.
+    
+    We expose this because an oAuth request can only be verified once,
+    so we want the web framework to keep the oAuth request around for
+    the duration of the call.
+    """
+    return OAuthRequest.from_http_request(http_request, self.store)
+
   def __generate_request_token(self, consumer, oauth_callback, **kwargs):
     """
     do the actual request token generation for a consumer
@@ -483,12 +500,17 @@ class OAuthServer(object):
     request_token = self.store.create_request_token(consumer, token, secret, verifier, oauth_callback, **kwargs)
     return request_token
   
-  def generate_request_token(self, http_request, **kwargs):
+  def generate_request_token(self, oauth_request, **kwargs):
     """
-    Generate and store a request token as requested by the given http_request
+    Generate and store a request token as requested by the given oauth_request
+
+    The oauth_request is the new parameter instead of http_request, since
+    verifying an oauth_request fails on nonce checking, so we need to keep
+    track of whether the request was already verified
     """
     # extract the oauth information
-    oauth_request = OAuthRequest.from_http_request(http_request, self.store)
+    # we already have the oauth_request
+    # oauth_request = OAuthRequest.from_http_request(http_request, self.store)
 
     if oauth_request.token != None:
       raise OAuthError("token mistakenly present in a request-token request")
@@ -589,7 +611,7 @@ class OAuthServer(object):
     return access_token
     
     
-  def check_resource_access(self, http_request):
+  def check_resource_access(self, oauth_request):
     """
     Check that this is a properly formed oauth resource access request
     returns the consumer, token, and all oauth parameters
@@ -597,7 +619,7 @@ class OAuthServer(object):
     A token is not required here, this could be a 2-legged request.
     """
     # construct the oauth request data structure
-    oauth_request = OAuthRequest.from_http_request(http_request, self.store)
+    # oauth_request = OAuthRequest.from_http_request(http_request, self.store)
 
     # we need an access token
     #
