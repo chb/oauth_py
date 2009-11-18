@@ -232,6 +232,16 @@ class OAuthRequest(object):
   def get_parameter(self, parameter, default):
     self.oauth_parameters.get(parameter, default)
 
+  @property
+  def oauth_callback(self):
+    if self.oauth_parameters.has_key('oauth_callback'):
+      return self.oauth_parameters['oauth_callback']
+    
+    if self.data.has_key('oauth_callback'):
+      return self.data['oauth_callback']
+    
+    return None
+
   def to_header(self, with_content_type = False):
     """
     serialize as a header for an HTTPAuth request
@@ -516,7 +526,7 @@ class OAuthServer(object):
       raise OAuthError("token mistakenly present in a request-token request")
 
     # oauth 1.0a requires a callback parameter
-    if not oauth_request.oauth_parameters.has_key('oauth_callback'):
+    if not oauth_request.oauth_callback:
       raise OAuthError("an oauth_callback is required in oauth v1.0a, even if it's 'oob'")
 
     # verify it
@@ -524,7 +534,7 @@ class OAuthServer(object):
     if not oauth_request.verify(self.store):
       raise OAuthError("Authentication Failure")
     
-    return self.__generate_request_token(oauth_request.consumer, oauth_request.oauth_parameters['oauth_callback'], **kwargs)
+    return self.__generate_request_token(oauth_request.consumer, oauth_request.oauth_callback, **kwargs)
 
   def __authorize_request_token(self, request_token, **kwargs):
     self.store.authorize_request_token(request_token, **kwargs)
