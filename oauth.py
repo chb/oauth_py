@@ -574,12 +574,13 @@ class OAuthServer(object):
 
     return access_token
 
-  def exchange_request_token(self, http_request):
+  def exchange_request_token(self, oauth_request):
     """
     Exchange the request token for an access token
+    changed to using oauth_request rather than http_request for better context maintenance over time
     """
     # construct the oauth request data structure
-    oauth_request = OAuthRequest.from_http_request(http_request, self.store)
+    # oauth_request = OAuthRequest.from_http_request(http_request, self.store)
 
     # we need a request token
     if oauth_request.token == None or oauth_request.token_type != OAuthRequest.REQUEST_TOKEN:
