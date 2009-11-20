@@ -242,6 +242,16 @@ class OAuthRequest(object):
     
     return None
 
+  @property
+  def oauth_verifier(self):
+    if self.oauth_parameters.has_key('oauth_verifier'):
+      return self.oauth_parameters['oauth_verifier']
+    
+    if self.data.has_key('oauth_verifier'):
+      return self.data['oauth_verifier']
+    
+    return None
+
   def to_header(self, with_content_type = False):
     """
     serialize as a header for an HTTPAuth request
@@ -591,10 +601,10 @@ class OAuthServer(object):
       raise OAuthError("Bad authentication")
 
     # ensure that the verifier is good
-    if not oauth_request.oauth_parameters.has_key('oauth_verifier'):
+    if not oauth_request.oauth_verifier:
       raise OAuthError("no request token verifier")
 
-    if not self.store.verify_request_token_verifier(oauth_request.token, oauth_request.oauth_parameters['oauth_verifier']):
+    if not self.store.verify_request_token_verifier(oauth_request.token, oauth_request.oauth_verifier):
       raise OAuthError("bad request token verifier")
 
     access_token = self.__exchange_request_token(oauth_request.consumer, oauth_request.token)
