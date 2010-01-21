@@ -24,6 +24,12 @@ import logging, copy,string
 VERSION = '1.0'
 TIMESTAMP_THRESHOLD = 300
 
+def report_error(error):
+  error = "oAuth: %s" % error
+  logging.debug(error)
+  raise OAuthError(error)
+  
+
 ## removed var_check
 
 class HTTPRequest(object):
@@ -184,11 +190,11 @@ class OAuthRequest(object):
     """
 
     if not consumer:
-      raise OAuthError("You must specify a consumer")
+      report_error("no consumer specified")
 
     # can only feed non default parameters
     if len(set(oauth_parameters.keys()) & set(OAuthRequest.DEFAULT_PARAMETERS)) > 0:
-      raise OAuthError("Some of the parameters are trying to override default parameters. You cannot do that.")
+      report_error("some of the parameters are trying to override default parameters. You cannot do that.")
 
     self.consumer = consumer
     self.token = token
@@ -213,7 +219,7 @@ class OAuthRequest(object):
           self.http_request.data == '': 
         self.data = parse_qs(self.http_request.data)
       else:
-        raise OAuthError("Query string must be a string")
+        report_error("Query string must be a string")
       self.__hash_body = False
     else:
       # no data parameters to sign, but as per Request Body Hash Extension.
@@ -223,7 +229,7 @@ class OAuthRequest(object):
     # check that there are no matching params between data and oauth_parameters
     # as that would indicate a misunderstanding by the developer
     if len(set(oauth_parameters.keys()) & set(self.data.keys())) > 0:
-      raise OAuthError("You have some common parameters in your HTTP data and your oauth parameters. That's not good.")
+      report_error("You have some common parameters in your HTTP data and your oauth parameters. That's not good.")
           
 
   def set_parameter(self, parameter, value):
@@ -353,7 +359,7 @@ class OAuthRequest(object):
   def __check_version(self):
     version = self.oauth_parameters.get('oauth_version', VERSION)
     if version != VERSION:
-      raise OAuthError("only oauth v1.0 is supported at this time, and this request claims verions %s" % version)
+      report_error("only oauth v1.0 is supported at this time, and this request claims verions %s" % version)
 
   def __check_timestamp(self):
     timestamp = int(self.oauth_parameters.get('oauth_timestamp', '0'))
@@ -362,13 +368,13 @@ class OAuthRequest(object):
     lapsed = now - timestamp
 
     if lapsed > TIMESTAMP_THRESHOLD:
-      raise OAuthError('Expired timestamp: given %d and now %s has a greater difference than threshold %d' % (timestamp, now, TIMESTAMP_THRESHOLD))
+      report_error('Expired timestamp: given %d and now %s has a greater difference than threshold %d' % (timestamp, now, TIMESTAMP_THRESHOLD))
     
   def __check_nonce(self, nonce_store):
     nonce_str = self.oauth_parameters.get('oauth_nonce', None)
 
     if not nonce_str:
-      raise OAuthError("no nonce")
+      report_error("no nonce")
 
     # this will throw an error if the nonce has been used before
     nonce_store.check_and_store_nonce(nonce_str)
@@ -388,7 +394,7 @@ class OAuthRequest(object):
     # join and escape
     sbs = '&'.join([escape(part) for part in [normalized_method, normalized_path, normalized_parameters]])
 
-    logging.debug("sbs: %s" % sbs)
+    # logging.debug("generated SBS: %s" % sbs)
     return sbs
 
   def get_signature_method(self):
@@ -422,8 +428,8 @@ class OAuthRequest(object):
     if headers.has_key('HTTP_AUTHORIZATION'):
       auth_header = headers['HTTP_AUTHORIZATION']
 
-    if headers.has_key('HTTP_X_OAUTH_SBS'):
-      logging.debug("client sbs: %s" % headers['HTTP_X_OAUTH_SBS'])
+    #if headers.has_key('HTTP_X_OAUTH_SBS'):
+    #  logging.debug("client sbs: %s" % headers['HTTP_X_OAUTH_SBS'])
 
     # check that the authorization header is OAuth
     # SZ: dict . index raises error, should use find or handle by having a try block
@@ -432,27 +438,27 @@ class OAuthRequest(object):
         # get the parameters from the header
         oauth_params = parse_header(auth_header)
       except:
-        raise OAuthError('Unable to parse OAuth parameters from Authorization header.')
+        report_error('Unable to parse OAuth parameters from Authorization header.')
     else:
-      raise OAuthError("No OAuth authorization header.")
+      report_error("No OAuth authorization header.")
 
     if not oauth_params:
-      raise OAuthError("Problem finding OAuth authorization information.")
+      report_error("Problem finding OAuth authorization information.")
 
     # we now have parameters, extract signature and store it separately
     if not oauth_params.has_key('oauth_signature'):
-      raise OAuthError("No signature in oauth header.")
+      report_error("No signature in oauth header.")
     
     signature = oauth_params['oauth_signature']
     del oauth_params['oauth_signature']
 
     # look up consumer
     if not oauth_params.has_key('oauth_consumer_key'):
-      raise OAuthError("no consumer")
+      report_error("no consumer")
     oauth_consumer_key = oauth_params['oauth_consumer_key']
     consumer = oauth_store.lookup_consumer(oauth_consumer_key)
     if not consumer:
-      raise OAuthError("No Consumer Found")
+      report_error("Consumer %s Not Found" % oauth_consumer_key)
 
     # look up token
     token = None
@@ -475,7 +481,7 @@ class OAuthRequest(object):
           type = OAuthRequest.ACCESS_TOKEN
         else:
           # a token was present, but it was not found in the system, that's bad, throw an error
-          raise OAuthError("a token was declared in the request but not found in the store")
+          report_error("a token was declared in the request but not found in the store")
 
     # create the request and manually set its oauth_parameters
     oauth_request = OAuthRequest(consumer, token, http_request, oauth_parameters = {})
@@ -533,16 +539,16 @@ class OAuthServer(object):
     # oauth_request = OAuthRequest.from_http_request(http_request, self.store)
 
     if oauth_request.token != None:
-      raise OAuthError("token mistakenly present in a request-token request")
+      report_error("token mistakenly present in a request-token request")
 
     # oauth 1.0a requires a callback parameter
     if not oauth_request.oauth_callback:
-      raise OAuthError("an oauth_callback is required in oauth v1.0a, even if it's 'oob'")
+      report_error("an oauth_callback is required in oauth v1.0a, even if it's 'oob'")
 
     # verify it
     # pass the store in to check nonce
     if not oauth_request.verify(self.store):
-      raise OAuthError("Authentication Failure")
+      report_error("Bad Signature")
     
     return self.__generate_request_token(oauth_request.consumer, oauth_request.oauth_callback, **kwargs)
 
@@ -557,7 +563,7 @@ class OAuthServer(object):
     request_token = self.store.lookup_request_token(None, request_token_str)
 
     if not request_token:
-      raise OAuthError("bad request token")
+      report_error("bad request token")
 
     # mark the request token authorized
     self.__authorize_request_token(request_token, **kwargs)
@@ -594,18 +600,18 @@ class OAuthServer(object):
 
     # we need a request token
     if oauth_request.token == None or oauth_request.token_type != OAuthRequest.REQUEST_TOKEN:
-      raise OAuthError("no token or incorrect token present in a token-exchange")
+      report_error("no token or incorrect token present in a token-exchange")
       
     # verify it
     if not oauth_request.verify(self.store):
-      raise OAuthError("Bad authentication")
+      report_error("Bad Signature")
 
     # ensure that the verifier is good
     if not oauth_request.oauth_verifier:
-      raise OAuthError("no request token verifier")
+      report_error("no request token verifier")
 
     if not self.store.verify_request_token_verifier(oauth_request.token, oauth_request.oauth_verifier):
-      raise OAuthError("bad request token verifier")
+      report_error("bad request token verifier")
 
     access_token = self.__exchange_request_token(oauth_request.consumer, oauth_request.token)
 
@@ -652,7 +658,7 @@ class OAuthServer(object):
     
     # verify it
     if not oauth_request.verify(self.store):
-      raise OAuthError("bad authentication")
+      report_error("bad signature")
 
     # grant access
     return oauth_request.consumer, oauth_request.token, oauth_request.oauth_parameters
