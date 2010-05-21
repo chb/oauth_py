@@ -548,7 +548,7 @@ class OAuthServer(object):
     # verify it
     # pass the store in to check nonce
     if not oauth_request.verify(self.store):
-      report_error("Bad Signature")
+      report_error("Signature mismatch")
     
     return self.__generate_request_token(oauth_request.consumer, oauth_request.oauth_callback, **kwargs)
 
@@ -563,7 +563,7 @@ class OAuthServer(object):
     request_token = self.store.lookup_request_token(None, request_token_str)
 
     if not request_token:
-      report_error("bad request token")
+      report_error("invalid request token")
 
     # mark the request token authorized
     self.__authorize_request_token(request_token, **kwargs)
@@ -604,14 +604,14 @@ class OAuthServer(object):
       
     # verify it
     if not oauth_request.verify(self.store):
-      report_error("Bad Signature")
+      report_error("Signature mismatch")
 
     # ensure that the verifier is good
     if not oauth_request.oauth_verifier:
       report_error("no request token verifier")
 
     if not self.store.verify_request_token_verifier(oauth_request.token, oauth_request.oauth_verifier):
-      report_error("bad request token verifier")
+      report_error("invalid request token verifier")
 
     access_token = self.__exchange_request_token(oauth_request.consumer, oauth_request.token)
 
@@ -658,7 +658,7 @@ class OAuthServer(object):
     
     # verify it
     if not oauth_request.verify(self.store):
-      report_error("bad signature")
+      report_error("signature mismatch")
 
     # grant access
     return oauth_request.consumer, oauth_request.token, oauth_request.oauth_parameters
