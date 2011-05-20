@@ -271,7 +271,7 @@ class OAuthRequest(object):
       auth_header += ', %s="%s"' % (k, escape(str(v)))
 
     # add the signature
-    auth_header += ", oauth_signature=%s" % self.signature
+    auth_header += ", oauth_signature=\"%s\"" % escape(self.signature)
 
     headers = {'Authorization': auth_header}
 
