@@ -19,6 +19,7 @@ import random
 import urlparse
 import hmac, hashlib
 import base64
+import re
 import logging, copy,string
 
 VERSION = '1.0'
@@ -41,11 +42,12 @@ class HTTPRequest(object):
   
   FORM_URLENCODED_TYPE = 'application/x-www-form-urlencoded'
   TEXT_PLAIN = 'text/plain'
+  CONTENT_TYPE_REGEX  = re.compile("([^;]*);?")
 
   def __init__(self, method, path, data_content_type=FORM_URLENCODED_TYPE, data='', headers={}):
     self.method       = method
     self.path         = path
-    self.data_content_type  = data_content_type
+    self.data_content_type  = self.CONTENT_TYPE_REGEX.match(data_content_type).group(1)
     self.data         = data
     self.headers      = headers
 
@@ -211,9 +213,9 @@ class OAuthRequest(object):
     self.realm = realm
 
     self.__verified = False
-
     # process the HTTP Request, in particular check the content-type
-    if self.http_request.data_content_type == HTTPRequest.FORM_URLENCODED_TYPE or self.http_request.method == "GET" or self.http_request.data == '':
+    if self.http_request.data_content_type ==HTTPRequest.FORM_URLENCODED_TYPE or self.http_request.method == "GET" or self.http_request.data == '':
+
       if (self.http_request.data and \
           (isinstance(self.http_request.data, str) or \
             isinstance(self.http_request.data, unicode))) or \
