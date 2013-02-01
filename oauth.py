@@ -25,9 +25,11 @@ import logging, copy,string
 VERSION = '1.0'
 TIMESTAMP_THRESHOLD = 300
 
+logger = logging.getLogger(__name__)
+
 def report_error(error):
-  error = "oAuth: %s" % error
-  logging.debug(error)
+  error = error
+  logger.debug(error)
   raise OAuthError(error)
   
 
@@ -397,7 +399,6 @@ class OAuthRequest(object):
     # join and escape
     sbs = '&'.join([escape(part) for part in [normalized_method, normalized_path, normalized_parameters]])
 
-    # logging.debug("generated SBS: %s" % sbs)
     return sbs
 
   def get_signature_method(self):
@@ -430,9 +431,6 @@ class OAuthRequest(object):
       auth_header = headers['Authorization']
     if headers.has_key('HTTP_AUTHORIZATION'):
       auth_header = headers['HTTP_AUTHORIZATION']
-
-    #if headers.has_key('HTTP_X_OAUTH_SBS'):
-    #  logging.debug("client sbs: %s" % headers['HTTP_X_OAUTH_SBS'])
 
     # check that the authorization header is OAuth
     # SZ: dict . index raises error, should use find or handle by having a try block
