@@ -12,15 +12,17 @@ Ben Adida (ben.adida@childrens.harvard.edu)
 2009-02-13
 """
 
-import cgi
-import urllib, urlparse, cgi
+import urllib
+import urlparse
 import time
 import random
-import urlparse
-import hmac, hashlib
+import hmac
+import hashlib
 import base64
 import re
-import logging, copy,string
+import logging
+import copy
+import string
 
 VERSION = '1.0'
 TIMESTAMP_THRESHOLD = 300
@@ -88,7 +90,7 @@ class OAuthToken(object):
   # oauth_token_secret=digg&oauth_token=digg
   @staticmethod   
   def from_string(s):
-    params = cgi.parse_qs(s, keep_blank_values=False)
+    params = urlparse.parse_qs(s, keep_blank_values=False)
     key = params['oauth_token'][0]
     secret = params['oauth_token_secret'][0]
 
@@ -820,7 +822,7 @@ def escape(s):
 
 # parse a query string
 def parse_qs(qs):
-  data = cgi.parse_qs(qs, keep_blank_values = True)
+  data = urlparse.parse_qs(qs, keep_blank_values = True)
   for k in data.keys():
     if len(data[k]) == 1:
       data[k] = data[k][0]
